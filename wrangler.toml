@@ -3,29 +3,6 @@ main = "src/index.js"
 compatibility_date = "2026-08-06"
 account_id = "YOUR_ACCOUNT_ID"
 workers_dev = true
-<script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-analytics.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
 
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-  const firebaseConfig = {
-    apiKey: "AIzaSyAfMMWFTbavWyBG1dwzz1fqy0m-Fhdu_Y0",
-    authDomain: "hrd-130b9.firebaseapp.com",
-    projectId: "hrd-130b9",
-    storageBucket: "hrd-130b9.firebasestorage.app",
-    messagingSenderId: "112571754580",
-    appId: "1:112571754580:web:cb03d46faa3baf59b7e5c1",
-    measurementId: "G-5Q13B409F6"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-</script>
-# Notes:
 # - Replace YOUR_ACCOUNT_ID with your Cloudflare account ID or add it via GitHub Secrets and let the Action write it.
 # - workers_dev = true will publish to <name>.<your-subdomain>.workers.dev when you run `wrangler publish` or via the GitHub Action.
