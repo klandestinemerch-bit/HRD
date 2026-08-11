@@ -4,5 +4,3 @@ compatibility_date = "2026-08-06"
 account_id = "YOUR_ACCOUNT_ID"
 workers_dev = true
 
-# - Replace YOUR_ACCOUNT_ID with your Cloudflare account ID or add it via GitHub Secrets and let the Action write it.
-# - workers_dev = true will publish to <name>.<your-subdomain>.workers.dev when you run `wrangler publish` or via the GitHub Action.
