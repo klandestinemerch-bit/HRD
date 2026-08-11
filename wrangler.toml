@@ -1,11 +1,26 @@
+init();
+  </script>
 
+  <!-- Firebase Integration -->
+  <script type="module">
+    // Import functions from Firebase SDKs
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-analytics.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyAfMMWFTbavWyBG1dwzz1fqy0m-Fhdu_Y0",
-    authDomain: "hrd-130b9.firebaseapp.com",
-    projectId: "hrd-130b9",
-    storageBucket: "hrd-130b9.firebasestorage.app",
-    messagingSenderId: "112571754580",
-    appId: "1:112571754580:web:cb03d46faa3baf59b7e5c1",
-    measurementId: "G-5Q13B409F6"
-  
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyAfMMWFTbavWyBG1dwzz1fqy0m-Fhdu_Y0",
+      authDomain: "hrd-130b9.firebaseapp.com",
+      projectId: "hrd-130b9",
+      storageBucket: "hrd-130b9.firebasestorage.app",
+      messagingSenderId: "112571754580",
+      appId: "1:112571754580:web:cb03d46faa3baf59b7e5c1",
+      measurementId: "G-5Q13B409F6"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+  </script>
+</body>
+</html>
