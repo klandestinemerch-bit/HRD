@@ -1,11 +1,4 @@
-// Kode fungsi init() Anda sebelumnya
-  init();
-</script>
 
-<!-- Blok Firebase JavaScript -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-analytics.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAfMMWFTbavWyBG1dwzz1fqy0m-Fhdu_Y0",
@@ -15,11 +8,4 @@
     messagingSenderId: "112571754580",
     appId: "1:112571754580:web:cb03d46faa3baf59b7e5c1",
     measurementId: "G-5Q13B409F6"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-</script>
-
-</body>
-</html>
+  
