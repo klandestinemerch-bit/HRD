@@ -1,7 +1,4 @@
-name = "hrd"
-main = "src/index.js"
-compatibility_date = "2026-08-01"
-
-[assets]
-directory = "./public"
+name = "hrd" main = "src/index.js" 
+compatibility_date = "2026-08-01" 
+[assets] directory = "./public" 
 binding = "ASSETS"
