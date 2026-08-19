@@ -1,0 +1,26 @@
+name: Supabase Preview
+
+on:
+  push:
+    branches:
+      - main
+      - HRD
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link and push to Supabase
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          supabase link --project-ref iqduwoqvqylilkcwkgwo
+          supabase db push --password "$SUPABASE_DB_PASSWORD"
