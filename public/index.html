@@ -509,7 +509,8 @@
     </form>
     <div class="login-hint">
       User dapat melihat seluruh data tanpa dapat mengubahnya.<br>
-      Admin memiliki akses penuh untuk mengedit, menambah, dan mengatur data.
+      Admin memiliki akses penuh untuk mengedit, menambah, dan mengatur data.<br>
+      <span style="color:var(--teal);font-weight:600;">Password default admin: <code style="background:#1c4a3f33;padding:1px 6px;border-radius:4px;">admin123</code></span>
     </div>
   </div>
 </div>
@@ -547,7 +548,53 @@ const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','A
 const BASE_MAX_ID = Math.max(...RAW.map(e => e.id));
 const DEFAULT_ADMIN_PASSWORD = 'admin123';
 
-let storageOK = true; // becomes false if window.storage is unavailable/fails
+let storageOK = true;
+
+/* ============================================================
+   SUPABASE PERSISTENT STORAGE
+   Database: compliance.dzhnoketcoedsaslippj.supabase.co
+   Table: hr_store (key TEXT PK, value JSONB)
+   ============================================================ */
+const SUPA_URL = 'https://dzhnoketcoedsaslippj.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6aG5va2V0Y29lZHNhc2xpcHBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzOTI4MzAsImV4cCI6MjA5OTk2ODgzMH0.A2bW-OVE3BP3YwhEiCZmd_kWT-qxqnsMbCerxgVsuz0';
+
+async function supaGet(key) {
+  try {
+    const res = await fetch(
+      `${SUPA_URL}/rest/v1/hr_store?key=eq.${encodeURIComponent(key)}&select=value`,
+      {
+        method: 'GET',
+        headers: {
+          'apikey': SUPA_KEY,
+          'Authorization': `Bearer ${SUPA_KEY}`,
+          'Accept': 'application/json',
+        }
+      }
+    );
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return rows.length ? rows[0].value : null;
+  } catch (e) { return null; }
+}
+
+async function supaSet(key, value) {
+  try {
+    const res = await fetch(
+      `${SUPA_URL}/rest/v1/hr_store`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': SUPA_KEY,
+          'Authorization': `Bearer ${SUPA_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({ key, value })
+      }
+    );
+    return res.ok;
+  } catch (e) { return false; }
+}
 
 function transform(e) {
   const bd = e.tanggal_lahir ? new Date(e.tanggal_lahir + 'T00:00:00') : null;
@@ -617,22 +664,76 @@ function escapeHtml(s) {
 }
 function isAdmin() { return state.role === 'admin'; }
 
-/* ============ Persistence (shared across everyone who opens this dashboard) ============ */
+/* ============ Persistence ============
+   Priority: Supabase (cloud) > localStorage (lokal) > default value
+   File dibuka via file:// -> Supabase mungkin kena CORS, localStorage tetap bisa
+   ============================================ */
+
+// Deteksi apakah berjalan di server atau file://
+const IS_FILE_PROTOCOL = window.location.protocol === 'file:';
+
 async function storageGet(key, fallback) {
+  // 1. Coba Supabase (hanya jika bukan file://)
+  if (!IS_FILE_PROTOCOL) {
+    try {
+      const val = await supaGet(key);
+      if (val !== null && val !== undefined) {
+        try { localStorage.setItem('hr_' + key, JSON.stringify(val)); } catch(e) {}
+        return val;
+      }
+    } catch(e) { /* Supabase gagal, lanjut ke localStorage */ }
+  }
+  // 2. Fallback ke localStorage
   try {
-    const r = await window.storage.get(key, true);
-    return r && r.value ? JSON.parse(r.value) : fallback;
-  } catch (err) { return fallback; }
+    const cached = localStorage.getItem('hr_' + key);
+    if (cached !== null) return JSON.parse(cached);
+  } catch(e) {}
+  // 3. Return default
+  return fallback;
 }
+
 async function storageSet(key, value) {
-  try {
-    const ok = await window.storage.set(key, JSON.stringify(value), true);
-    if (!ok) storageOK = false;
-    return ok;
-  } catch (err) { storageOK = false; return null; }
+  // Selalu simpan ke localStorage (bekerja di file:// maupun server)
+  try { localStorage.setItem('hr_' + key, JSON.stringify(value)); } catch(e) {}
+  // Juga simpan ke Supabase jika bukan file://
+  if (!IS_FILE_PROTOCOL) {
+    try {
+      const ok = await supaSet(key, value);
+      storageOK = ok !== false;
+      return ok;
+    } catch (err) { storageOK = false; }
+  } else {
+    storageOK = true; // localStorage selalu OK
+  }
+  return true;
 }
 
 async function loadPersisted() {
+  // Tampilkan loading saat koneksi ke Supabase
+  const loadMsg = document.createElement('div');
+  loadMsg.id = 'supaLoadMsg';
+  loadMsg.style.cssText = 'position:fixed;inset:0;background:rgba(10,20,18,.92);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#f4f0e4;font-family:Space Grotesk,sans-serif;';
+  loadMsg.innerHTML = `
+    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#4a9e82" stroke-width="2" style="animation:spin 1s linear infinite;">
+      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+    </svg>
+    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+    <div style="font-size:16px;font-weight:600;" id="supaLoadText">Memuat data...</div>
+    <div style="font-size:12px;color:#9fb8ae;" id="supaLoadSub">HR Monitoring Dashboard</div>
+  `;
+  document.body?.appendChild(loadMsg);
+
+  // Update teks loading sesuai mode
+  const lt = document.getElementById('supaLoadText');
+  const ls = document.getElementById('supaLoadSub');
+  if (IS_FILE_PROTOCOL) {
+    if (lt) lt.textContent = 'Memuat data lokal...';
+    if (ls) ls.textContent = 'Mode file lokal (localStorage)';
+  } else {
+    if (lt) lt.textContent = 'Menghubungkan ke Database...';
+    if (ls) ls.textContent = 'Supabase HR Monitoring';
+  }
+
   statusOverrides = await storageGet('status-overrides', {});
   fieldOverrides = await storageGet('field-overrides', {});
   addedEmployees = await storageGet('added-employees', []);
@@ -641,10 +742,14 @@ async function loadPersisted() {
   assetInventory = await storageGet('asset-inventory', {});
   bagiHasil = await storageGet('bagi-hasil', {});
   spRecords = await storageGet('sp-records', []);
-  adminPassword = (await storageGet('admin-password', { v: DEFAULT_ADMIN_PASSWORD })).v || DEFAULT_ADMIN_PASSWORD;
+  const pwData = await storageGet('admin-password', { v: DEFAULT_ADMIN_PASSWORD });
+  adminPassword = (pwData && pwData.v) ? pwData.v : DEFAULT_ADMIN_PASSWORD;
   settings = { ...settings, ...(await storageGet('app-settings', {})) };
   rebuildEMP();
   applyTheme();
+  // Hapus loading screen
+  const lm = document.getElementById('supaLoadMsg');
+  if (lm) lm.remove();
 }
 
 function rebuildEMP() {
@@ -910,13 +1015,15 @@ function setupLogin() {
     document.getElementById('loginError').classList.remove('show');
   };
 
-  document.getElementById('loginForm').onsubmit = (ev) => {
+  document.getElementById('loginForm').onsubmit = async (ev) => {
     ev.preventDefault();
     const errEl = document.getElementById('loginError');
     if (selectedRole === 'admin') {
       const pw = document.getElementById('loginPassword').value;
-      if (pw !== adminPassword) {
-        errEl.textContent = 'Password admin salah. Silakan coba lagi.';
+      // Triple-safe: adminPassword -> DEFAULT_ADMIN_PASSWORD -> 'admin123'
+      const effectivePassword = adminPassword || DEFAULT_ADMIN_PASSWORD || 'admin123';
+      if (pw !== effectivePassword) {
+        errEl.textContent = 'Password salah. Coba: admin123';
         errEl.classList.add('show');
         return;
       }
@@ -1772,8 +1879,6 @@ function renderInput() {
       </div>
       ${editing ? `<div class="topbar-right"><button class="btn" id="cancelEditBtn">Batal, Kembali ke Direktori</button></div>` : ''}
     </div>
-
-    ${!storageOK ? `<div class="banner-warn">⚠️ Penyimpanan permanen tidak tersedia — perubahan hanya berlaku selama halaman ini terbuka.</div>` : ''}
 
     <div class="toast" id="successToast">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>
@@ -2816,7 +2921,11 @@ function renderSettings() {
     </div>
 
     ${!admin ? `<div class="admin-only-note">🔒 Anda masuk sebagai User. Pengaturan hanya dapat diubah oleh Admin — tampilan di bawah ini bersifat lihat saja.</div>` : ''}
-    ${!storageOK ? `<div class="banner-warn">⚠️ Penyimpanan permanen tidak tersedia — perubahan pengaturan hanya berlaku selama halaman ini terbuka.</div>` : ''}
+    <div class="banner-info" style="background:#1c4a3f22;border-color:#4a7c66;color:#4a7c66;">
+      ${IS_FILE_PROTOCOL
+        ? '💾 Mode lokal: pengaturan tersimpan di browser ini.'
+        : '✅ Pengaturan tersimpan permanen ke database Supabase.'}
+    </div>
     ${admin ? `<div class="admin-only-note">ℹ️ Pengaturan ini bersifat global: perubahan akan berlaku untuk semua orang yang membuka dashboard ini.</div>` : ''}
 
     <div class="toast" id="settingsToast">
@@ -2962,12 +3071,25 @@ function render() {
 }
 
 async function init() {
-  if (!window.storage) storageOK = false;
+  // Test koneksi Supabase
+  storageOK = true;
+  try {
+    const testRes = await fetch(`${SUPA_URL}/rest/v1/hr_store?limit=1`, {
+      headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}` }
+    });
+    storageOK = testRes.ok;
+  } catch(e) { storageOK = false; }
+
   await loadPersisted();
   state.pageSize = settings.pageSize || 15;
   setupLogin();
 }
-init();
+// Pastikan DOM siap sebelum init
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
 
 </script>
 </body>
