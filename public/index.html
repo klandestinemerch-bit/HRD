@@ -595,6 +595,97 @@ async function supaSet(key, value) {
   } catch (e) { return false; }
 }
 
+// ============================================================
+// SYNC SP ke sdm_records (tabel ComplianceHO)
+// Dipanggil otomatis setiap kali sp-records disimpan
+// ============================================================
+async function syncSPToCompliance(spList) {
+  if (!Array.isArray(spList) || spList.length === 0) return;
+  try {
+    // Hapus semua SP lama dari HRD di sdm_records (store='sp', prefix record_id='hrd_')
+    await fetch(
+      `${SUPA_URL}/rest/v1/sdm_records?store=eq.sp&record_id=like.hrd_%`,
+      {
+        method: 'DELETE',
+        headers: {
+          'apikey': SUPA_KEY,
+          'Authorization': `Bearer ${SUPA_KEY}`,
+        }
+      }
+    );
+    // Insert ulang semua SP dari HRD ke sdm_records
+    const rows = spList.map(sp => ({
+      store: 'sp',
+      record_id: 'hrd_' + (sp.rid || sp.id || Math.random().toString(36).slice(2)),
+      data: {
+        ...sp,
+        _source: 'hrd',
+        tanggal: sp.tanggal,
+        karyawan: sp.nama,
+        divisi: sp.divisi,
+        level_sp: sp.level,
+        pelanggaran: sp.alasan,
+        diberikan_oleh: sp.diberikan_oleh,
+        berlaku_sd: sp.berlaku_sd,
+        status: sp.status || 'Aktif',
+      },
+      updated_at: new Date().toISOString(),
+    }));
+    if (rows.length === 0) return;
+    await fetch(
+      `${SUPA_URL}/rest/v1/sdm_records`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': SUPA_KEY,
+          'Authorization': `Bearer ${SUPA_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify(rows)
+      }
+    );
+    console.log('[HRD-SYNC] SP berhasil disync ke ComplianceHO:', rows.length, 'record');
+  } catch (e) {
+    console.warn('[HRD-SYNC] Gagal sync SP ke ComplianceHO:', e.message);
+  }
+}
+
+// Baca SP dari ComplianceHO (sdm_records store='sp') yang bukan dari HRD
+async function loadSPFromCompliance() {
+  try {
+    const res = await fetch(
+      `${SUPA_URL}/rest/v1/sdm_records?store=eq.sp&record_id=not.like.hrd_%&select=record_id,data,updated_at`,
+      {
+        headers: {
+          'apikey': SUPA_KEY,
+          'Authorization': `Bearer ${SUPA_KEY}`,
+          'Accept': 'application/json',
+        }
+      }
+    );
+    if (!res.ok) return [];
+    const rows = await res.json();
+    return rows.map(r => ({
+      rid: r.record_id,
+      tanggal: r.data.tanggal || r.data.date || '',
+      emp_id: r.data.emp_id || null,
+      nama: r.data.karyawan || r.data.nama || '',
+      divisi: r.data.divisi || r.data.unit || '',
+      level: r.data.level_sp || r.data.level || 'SP 1',
+      alasan: r.data.pelanggaran || r.data.alasan || '',
+      diberikan_oleh: r.data.diberikan_oleh || '',
+      berlaku_sd: r.data.berlaku_sd || '',
+      status: r.data.status || 'Aktif',
+      lampiran_count: r.data.lampiran_count || 0,
+      _source: 'compliance',
+    }));
+  } catch (e) {
+    console.warn('[HRD-SYNC] Gagal load SP dari ComplianceHO:', e.message);
+    return [];
+  }
+}
+
 function transform(e) {
   const bd = e.tanggal_lahir ? new Date(e.tanggal_lahir + 'T00:00:00') : null;
   const jd = e.tanggal_gabung ? new Date(e.tanggal_gabung + 'T00:00:00') : null;
@@ -741,6 +832,20 @@ async function loadPersisted() {
   assetInventory = await storageGet('asset-inventory', {});
   bagiHasil = await storageGet('bagi-hasil', {});
   spRecords = await storageGet('sp-records', []);
+  // Merge SP dari ComplianceHO yang tidak ada di HRD
+  if (!IS_FILE_PROTOCOL) {
+    try {
+      const complianceSP = await loadSPFromCompliance();
+      if (complianceSP.length > 0) {
+        const hrdRids = new Set(spRecords.map(r => r.rid));
+        const newFromCompliance = complianceSP.filter(r => !hrdRids.has(r.rid));
+        if (newFromCompliance.length > 0) {
+          spRecords = [...spRecords, ...newFromCompliance];
+          console.log('[HRD-SYNC] Dimuat', newFromCompliance.length, 'SP dari ComplianceHO');
+        }
+      }
+    } catch(e) { console.warn('[HRD-SYNC] Gagal merge SP dari ComplianceHO:', e); }
+  }
   const pwData = await storageGet('admin-password', { v: DEFAULT_ADMIN_PASSWORD });
   adminPassword = (pwData && pwData.v) ? pwData.v : DEFAULT_ADMIN_PASSWORD;
   settings = { ...settings, ...(await storageGet('app-settings', {})) };
@@ -766,7 +871,13 @@ async function persistFieldOverrides() { await storageSet('field-overrides', fie
 async function persistAddedEmployees() { await storageSet('added-employees', addedEmployees); }
 async function persistSettings() { await storageSet('app-settings', settings); }
 async function persistAdminPassword() { await storageSet('admin-password', { v: adminPassword }); }
-async function persistSPRecords() { await storageSet('sp-records', spRecords); }
+async function persistSPRecords() {
+  await storageSet('sp-records', spRecords);
+  // Sync otomatis ke ComplianceHO (sdm_records)
+  if (!IS_FILE_PROTOCOL) {
+    syncSPToCompliance(spRecords); // jalankan async, tidak block UI
+  }
+}
 async function persistLocationHistory() { await storageSet('location-history', locationHistory); }
 async function persistSalaryHistory() { await storageSet('salary-history', salaryHistory); }
 
